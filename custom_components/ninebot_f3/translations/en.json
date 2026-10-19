@@ -1,0 +1,125 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Segway Ninebot F3 / F3 Pro",
+        "description": "The session password is a per-scooter secret the Segway app already holds. Export it with tools/extract_creds.py and paste it here, so Home Assistant and the app share one credential and neither unpairs the other.",
+        "data": {
+          "address": "Scooter",
+          "bt_name": "BLE name (serial number)",
+          "password_hex": "Session password (32 hex)",
+          "gen": "Protocol generation"
+        },
+        "data_description": {
+          "bt_name": "Exactly as advertised; it is the encryption key material.",
+          "gen": "The F3 / F3 Pro uses gen2."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Credential no longer valid",
+        "description": "The scooter rejected the password. If the app re-paired it generated a new one; export it again.",
+        "data": {
+          "password_hex": "Session password (32 hex)"
+        }
+      }
+    },
+    "error": {
+      "invalid_password": "Must be 32 hexadecimal characters (16 bytes)."
+    },
+    "abort": {
+      "already_configured": "This scooter is already configured.",
+      "auth_v3": "This vehicle uses authV3, which this integration does not implement."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Polling interval",
+        "description": "Each read occupies the scooter radio for a few seconds; the Segway app cannot connect meanwhile.",
+        "data": {
+          "scan_interval_s": "Seconds between reads"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery": {
+        "name": "Battery"
+      },
+      "speed": {
+        "name": "Speed"
+      },
+      "total_mileage": {
+        "name": "Total mileage"
+      },
+      "trip_mileage": {
+        "name": "Trip mileage"
+      },
+      "left_mileage": {
+        "name": "Remaining range"
+      },
+      "precise_mileage": {
+        "name": "Precise range"
+      },
+      "body_temp": {
+        "name": "Temperature"
+      },
+      "ride_time": {
+        "name": "Ride time"
+      },
+      "runtime": {
+        "name": "Power-on time"
+      },
+      "trip_time": {
+        "name": "Trip duration"
+      },
+      "gear_mode": {
+        "name": "Riding mode",
+        "state": {
+          "normal": "Normal",
+          "eco": "Eco",
+          "sport": "Sport",
+          "custom": "Custom",
+          "unknown": "Unknown"
+        }
+      },
+      "error_code": {
+        "name": "Error code"
+      },
+      "warn_code": {
+        "name": "Warning code"
+      },
+      "serial_number": {
+        "name": "Serial number"
+      },
+      "bms1_voltage": {
+        "name": "Battery 1 voltage"
+      },
+      "bms1_current": {
+        "name": "Battery 1 current"
+      },
+      "bms1_soc": {
+        "name": "Battery 1 charge"
+      },
+      "bms1_temp": {
+        "name": "Battery 1 temperature"
+      },
+      "bms2_voltage": {
+        "name": "Battery 2 voltage"
+      },
+      "bms2_current": {
+        "name": "Battery 2 current"
+      },
+      "bms2_soc": {
+        "name": "Battery 2 charge"
+      }
+    },
+    "switch": {
+      "polling": {
+        "name": "BLE polling"
+      }
+    }
+  }
+}

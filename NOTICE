@@ -1,0 +1,15 @@
+ha-ninebot-f3
+Integracion no oficial. Sin relacion con Segway Inc. ni Ninebot; "Segway" y
+"Ninebot" son marcas de sus titulares y se usan solo para identificar el
+hardware con el que este software interopera. Desarrollada por ingenieria
+inversa con fines de interoperabilidad.
+
+custom_components/ninebot_f3/nb/crypto.py deriva de segway-ninebot-ble-cli
+(https://codeberg.org/NootNooot/segway-ninebot-ble-cli), Copyright 2026
+NootNooot, distribuido bajo Apache License 2.0. Unica modificacion: AES via la
+biblioteca `cryptography` en lugar de pycryptodome. Copia de la licencia en
+LICENSE-APACHE-2.0.
+
+El mapa de registros procede de la documentacion del protocolo en
+https://codeberg.org/NootNooot/segway-ninebot-ble (familia eKickScooter F3,
+hardware id 259).
