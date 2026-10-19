@@ -160,6 +160,58 @@ async def _walk(afc) -> list[tuple[str, list[str], list[str]]]:
 # Modo copia de seguridad
 # ---------------------------------------------------------------------------
 
+def _segway_plist_from_backup(backup: Path) -> bytes | None:
+    """Localiza el plist de Segway via Manifest.db (indice SQLite del backup).
+
+    El nombre del fichero es SHA1(dominio-rutaRelativa), distinto por app y
+    version, asi que no se puede fijar. Manifest.db mapea dominio/ruta -> fileID.
+    """
+    import sqlite3
+
+    mdb = backup / "Manifest.db"
+    if not mdb.is_file():
+        return None
+    try:
+        con = sqlite3.connect(f"file:{mdb}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return None  # cifrado o ilegible
+    try:
+        rows = con.execute(
+            "SELECT fileID, relativePath FROM Files "
+            "WHERE domain LIKE 'AppDomain-com.ninebot.segway%' "
+            "AND relativePath LIKE '%.plist'"
+        ).fetchall()
+    except sqlite3.DatabaseError:
+        return None  # Manifest.db cifrado (backup encriptado)
+    finally:
+        con.close()
+    for file_id, _rel in rows:
+        blob_path = backup / file_id[:2] / file_id
+        if blob_path.is_file():
+            blob = blob_path.read_bytes()
+            if looks_like_segway_prefs(blob):
+                return blob
+    return None
+
+
+def _backup_domains(backup: Path) -> list[str]:
+    """Dominios de app presentes en el backup (para diagnostico)."""
+    import sqlite3
+
+    mdb = backup / "Manifest.db"
+    if not mdb.is_file():
+        return []
+    try:
+        con = sqlite3.connect(f"file:{mdb}?mode=ro", uri=True)
+        rows = con.execute(
+            "SELECT DISTINCT domain FROM Files WHERE domain LIKE 'AppDomain-%'"
+        ).fetchall()
+        con.close()
+    except sqlite3.Error:
+        return []
+    return sorted(d for (d,) in rows)
+
+
 def read_from_backup(explicit: Path | None) -> dict[str, str]:
     if explicit:
         return creds_from_plist(plistlib.loads(explicit.read_bytes()))
@@ -175,19 +227,37 @@ def read_from_backup(explicit: Path | None) -> dict[str, str]:
             f"macOS bloquea el acceso a {BACKUP_ROOT}.\nAjustes del Sistema > "
             "Privacidad y seguridad > Acceso total al disco > anade tu terminal."
         ) from None
+
+    had_segway_domain = False
     for backup in backups:
+        encrypted = False
         manifest = backup / "Manifest.plist"
         if manifest.is_file():
             try:
-                if plistlib.loads(manifest.read_bytes()).get("IsEncrypted"):
-                    print(f"  [saltada] {backup.name}: copia cifrada", file=sys.stderr)
-                    continue
-            except Exception:  # noqa: BLE001 - manifest ilegible, probamos igual
+                encrypted = bool(plistlib.loads(manifest.read_bytes()).get("IsEncrypted"))
+            except Exception:  # noqa: BLE001 - manifest ilegible
                 pass
-        candidate = backup / SEGWAY_PLIST_ID[:2] / SEGWAY_PLIST_ID
-        if candidate.is_file() and looks_like_segway_prefs(candidate.read_bytes()):
-            return creds_from_plist(plistlib.loads(candidate.read_bytes()))
-    raise SystemExit("Ninguna copia sin cifrar contiene datos de Segway.")
+        blob = _segway_plist_from_backup(backup)
+        if blob:
+            return creds_from_plist(plistlib.loads(blob))
+        domains = _backup_domains(backup)
+        has_segway = any("com.ninebot.segway" in d for d in domains)
+        had_segway_domain = had_segway_domain or has_segway
+        state = "cifrada" if encrypted else "sin cifrar"
+        print(f"  [{backup.name[:12]}…] {state}, {len(domains)} apps, "
+              f"Segway {'SI' if has_segway else 'NO'} presente", file=sys.stderr)
+
+    if had_segway_domain:
+        raise SystemExit(
+            "El backup contiene la app Segway pero su plist de preferencias no\n"
+            "trae las credenciales. Abre la app una vez con el patinete cerca\n"
+            "(que conecte), y rehaz el backup SIN cifrar."
+        )
+    raise SystemExit(
+        "Ningun backup sin cifrar contiene datos de la app Segway.\n"
+        "Si el backup salio cifrado, rehazlo con \"Encriptar copia local\" DESMARCADO.\n"
+        "Si no, abre la app Segway una vez y vuelve a hacer el backup."
+    )
 
 
 # ---------------------------------------------------------------------------

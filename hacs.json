@@ -1,5 +1,5 @@
 {
-  "name": "Segway Ninebot F3 / F3 Pro",
+  "name": "Segway Ninebot",
   "render_readme": true,
   "homeassistant": "2024.12.0"
 }

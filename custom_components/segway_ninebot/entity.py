@@ -21,7 +21,7 @@ class NinebotEntity(CoordinatorEntity[NinebotCoordinator]):
             identifiers={(DOMAIN, coordinator.address)},
             connections={(CONNECTION_BLUETOOTH, coordinator.address)},
             manufacturer="Segway-Ninebot",
-            model="KickScooter F3 / F3 Pro",
+            model="KickScooter",
             name=coordinator.name,
             serial_number=coordinator.serial,
             sw_version=str((coordinator.data or {}).get("firmware_ctrl") or ""),

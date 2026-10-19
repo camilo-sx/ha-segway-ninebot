@@ -1,6 +1,6 @@
 {
   "domain": "segway_ninebot",
-  "name": "Segway Ninebot F3 / F3 Pro",
+  "name": "Segway Ninebot",
   "version": "0.1.0",
   "documentation": "https://github.com/camilo-sx/ha-segway-ninebot",
   "issue_tracker": "https://github.com/camilo-sx/ha-segway-ninebot/issues",
@@ -11,7 +11,11 @@
   "iot_class": "local_polling",
   "bluetooth": [
     { "manufacturer_id": 16974 },
-    { "manufacturer_id": 20034 }
+    { "manufacturer_id": 16975 },
+    { "manufacturer_id": 17230 },
+    { "manufacturer_id": 20034 },
+    { "manufacturer_id": 20035 },
+    { "manufacturer_id": 20290 }
   ],
   "loggers": ["custom_components.segway_ninebot"],
   "requirements": []

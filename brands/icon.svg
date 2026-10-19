@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#15b89a"/>
+      <stop offset="1" stop-color="#0d8f93"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe24a"/>
+      <stop offset="1" stop-color="#ffc531"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="114" fill="url(#bg)"/>
+  <!-- patineta electrica, vista lateral -->
+  <g fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+    <!-- rueda trasera -->
+    <circle cx="150" cy="360" r="46"/>
+    <!-- rueda delantera -->
+    <circle cx="372" cy="360" r="46"/>
+    <!-- plataforma (deck) -->
+    <path d="M150 360 L300 360"/>
+    <!-- mastil -->
+    <path d="M300 360 L372 170"/>
+    <!-- manillar -->
+    <path d="M372 170 L328 170 M372 170 L404 184"/>
+  </g>
+  <!-- rayo de energia -->
+  <path d="M243 150 L205 250 L243 250 L223 322 L292 220 L250 220 Z" fill="url(#bolt)" stroke="#0d8f93" stroke-width="6" stroke-linejoin="round"/>
+</svg>
