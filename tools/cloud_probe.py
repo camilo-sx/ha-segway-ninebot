@@ -122,6 +122,8 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--user")
     ap.add_argument("--password", "--pass", dest="password")
+    ap.add_argument("--creds-file", help="JSON {\"user\":..,\"password\":..,\"area_code\":..} "
+                    "fuera del repo; evita que la contrasena salga en la lista de procesos")
     ap.add_argument("--area-code", default="86")
     ap.add_argument("--config", default=api.default_config_dir())
     ap.add_argument("--passport-host", default=api.PASSPORT_BASE)
@@ -136,9 +138,19 @@ def main() -> int:
     cfg = api.load_config(args.config)
     device_id = cfg["device_id"]
 
+    # Credenciales: preferible un fichero fuera del repo (no sale en `ps`).
+    user, password, area_code = args.user, args.password, args.area_code
+    if args.creds_file:
+        import json
+        with open(args.creds_file, encoding="utf-8") as fh:
+            c = json.load(fh)
+        user = c.get("user", user)
+        password = c.get("password", password)
+        area_code = c.get("area_code", area_code)
+
     # Login: credenciales explicitas o tokens guardados.
-    if args.user and args.password:
-        tokens = api.passport_login(args.user, args.password, area_code=args.area_code,
+    if user and password:
+        tokens = api.passport_login(user, password, area_code=area_code,
                                     base=args.passport_host)
         api.save_tokens(args.config, tokens)
         print(f"[+] passport login ok  uuid={tokens.get('uuid')}")
