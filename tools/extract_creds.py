@@ -1,41 +1,181 @@
 #!/usr/bin/env python3
-"""Extrae de una copia de seguridad de iOS la credencial que la app de Segway
-ya tiene para tu patinete, para que Home Assistant use LA MISMA y no haga
-falta reemparejar nada.
+"""Exporta la credencial que la app Segway Mobility ya tiene para tu patinete,
+para que Home Assistant use LA MISMA y no haga falta reemparejar nada.
 
 La app guarda, por numero de serie, dos secretos en sus UserDefaults:
 
     {serie}_decrypt   16 bytes  contrasena de sesion (AUTH y trafico posterior)
-    {serie}_ident     32 hex    token para acciones del vehiculo (cmd 0x64)
+    {serie}_ident     32 hex    token de acciones del vehiculo (cmd 0x64)
 
-Requiere una copia de seguridad LOCAL y SIN CIFRAR hecha desde Finder
-(Finder > iPhone > Gestionar copias > desmarcar "Encriptar copia local").
+Dos modos:
 
-    python3 tools/extract_creds.py                 # busca sola la copia
-    python3 tools/extract_creds.py --sn 1EFGE2513C1181
-    python3 tools/extract_creds.py --plist ruta/com.ninebot.segway.plist
+  --usb      lee el contenedor de la app por USB con house_arrest.
+                 pip install pymobiledevice3
+             OJO: iOS solo vende por AFC las apps con file sharing o firmadas
+             para depuracion. Segway Mobility, al venir de la App Store, da
+             InstallationLookupFailed en un iPhone sin jailbreak. Queda aqui
+             por si una build futura lo permite, pero hoy usa --backup.
+
+  --backup   lee una copia de seguridad LOCAL y SIN CIFRAR hecha desde Finder.
+             Alternativa si house_arrest no vende el contenedor. En macOS
+             necesita Acceso total al disco para el terminal.
+
+Ejemplos:
+    python3 tools/extract_creds.py --usb
+    python3 tools/extract_creds.py --usb --sn 1EFGE2513C1181 --out creds.json
+    python3 tools/extract_creds.py --backup
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
+import json
 import plistlib
 import sys
 from pathlib import Path
 
+BUNDLE_ID = "com.ninebot.segway"
 BACKUP_ROOT = Path.home() / "Library/Application Support/MobileSync/Backup"
 # Id estable del fichero UserDefaults de com.ninebot.segway dentro de la copia.
 SEGWAY_PLIST_ID = "7fff5a30d7d67fe00bf012e2dc3a61f63c8661bd"
 
 
-def find_plists() -> list[Path]:
-    """Localiza el plist de Segway en las copias locales."""
-    hits: list[Path] = []
-    if not BACKUP_ROOT.is_dir():
-        return hits
-    for backup in sorted(BACKUP_ROOT.iterdir()):
-        if not backup.is_dir():
+# ---------------------------------------------------------------------------
+# Interpretacion del plist
+# ---------------------------------------------------------------------------
+
+def creds_from_plist(data: dict) -> dict[str, str]:
+    """Saca {clave: hex} de un UserDefaults de la app."""
+    out: dict[str, str] = {}
+    for key, value in data.items():
+        if not isinstance(key, str) or not key.endswith(("_decrypt", "_ident")):
             continue
+        if isinstance(value, str) and key.endswith("_decrypt"):
+            # NSUserDefaults puede devolver el NSData ya en base64.
+            try:
+                value = base64.b64decode(value, validate=True)
+            except Exception:  # noqa: BLE001 - entonces era texto de verdad
+                pass
+        out[key] = value.hex() if isinstance(value, (bytes, bytearray)) else str(value)
+    return out
+
+
+def looks_like_segway_prefs(blob: bytes) -> bool:
+    try:
+        data = plistlib.loads(blob)
+    except Exception:  # noqa: BLE001 - no es un plist utilizable
+        return False
+    return isinstance(data, dict) and any(
+        isinstance(k, str) and k.endswith("_decrypt") for k in data
+    )
+
+
+# ---------------------------------------------------------------------------
+# Modo USB (house_arrest)
+# ---------------------------------------------------------------------------
+
+async def _read_container() -> dict[str, str]:
+    from pymobiledevice3.lockdown import create_using_usbmux
+    from pymobiledevice3.services.house_arrest import HouseArrestService
+
+    lockdown = await create_using_usbmux()
+    errors: list[str] = []
+    # VendContainer da el contenedor entero; VendDocuments solo Documents y casi
+    # nunca sirve aqui, pero se intenta por si el firmware restringe el primero.
+    for documents_only in (False, True):
+        label = "VendDocuments" if documents_only else "VendContainer"
+        try:
+            async with await HouseArrestService.create(
+                lockdown, BUNDLE_ID, documents_only
+            ) as afc:
+                blob = await _find_prefs(afc)
+                if blob is None:
+                    errors.append(f"{label}: contenedor accesible, sin UserDefaults")
+                    continue
+                return creds_from_plist(plistlib.loads(blob))
+        except Exception as err:  # noqa: BLE001 - se informa y se prueba el otro
+            errors.append(f"{label}: {type(err).__name__}: {err}")
+    raise SystemExit(
+        "No pude leer el contenedor de la app por USB:\n  "
+        + "\n  ".join(errors)
+        + "\n\nComprueba que el iPhone este desbloqueado y haya confiado en este"
+        "\nordenador, o usa --backup."
+    )
+
+
+async def _find_prefs(afc) -> bytes | None:
+    """Ruta esperada primero; si no, recorre el contenedor buscando el plist."""
+    direct = f"/Library/Preferences/{BUNDLE_ID}.plist"
+    try:
+        blob = await afc.get_file_contents(direct)
+        if looks_like_segway_prefs(blob):
+            return blob
+    except Exception:  # noqa: BLE001 - seguimos con la busqueda amplia
+        pass
+    for root, _dirs, files in await _walk(afc):
+        for name in files:
+            if not name.endswith(".plist"):
+                continue
+            path = f"{root.rstrip('/')}/{name}"
+            try:
+                blob = await afc.get_file_contents(path)
+            except Exception:  # noqa: BLE001 - fichero inaccesible
+                continue
+            if looks_like_segway_prefs(blob):
+                print(f"  (encontrado en {path})", file=sys.stderr)
+                return blob
+    return None
+
+
+async def _walk(afc) -> list[tuple[str, list[str], list[str]]]:
+    """walk() acotado a las carpetas donde iOS guarda preferencias."""
+    results = []
+    pending = ["/Library", "/Documents"]
+    seen = set()
+    while pending:
+        current = pending.pop()
+        if current in seen or len(seen) > 400:  # ponytail: tope duro, no es un indexador
+            continue
+        seen.add(current)
+        try:
+            entries = await afc.listdir(current)
+        except Exception:  # noqa: BLE001 - carpeta inaccesible
+            continue
+        dirs, files = [], []
+        for entry in entries:
+            if entry in (".", ".."):
+                continue
+            path = f"{current.rstrip('/')}/{entry}"
+            try:
+                (dirs if await afc.isdir(path) else files).append(entry)
+            except Exception:  # noqa: BLE001
+                files.append(entry)
+        results.append((current, dirs, files))
+        pending.extend(f"{current.rstrip('/')}/{d}" for d in dirs)
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Modo copia de seguridad
+# ---------------------------------------------------------------------------
+
+def read_from_backup(explicit: Path | None) -> dict[str, str]:
+    if explicit:
+        return creds_from_plist(plistlib.loads(explicit.read_bytes()))
+    if not BACKUP_ROOT.is_dir():
+        raise SystemExit(
+            "No hay copias de iOS en este Mac. Hazla desde Finder > iPhone >\n"
+            "Crear copia de seguridad ahora, con \"Encriptar copia local\" DESMARCADO."
+        )
+    try:
+        backups = sorted(p for p in BACKUP_ROOT.iterdir() if p.is_dir())
+    except PermissionError:
+        raise SystemExit(
+            f"macOS bloquea el acceso a {BACKUP_ROOT}.\nAjustes del Sistema > "
+            "Privacidad y seguridad > Acceso total al disco > anade tu terminal."
+        ) from None
+    for backup in backups:
         manifest = backup / "Manifest.plist"
         if manifest.is_file():
             try:
@@ -45,77 +185,65 @@ def find_plists() -> list[Path]:
             except Exception:  # noqa: BLE001 - manifest ilegible, probamos igual
                 pass
         candidate = backup / SEGWAY_PLIST_ID[:2] / SEGWAY_PLIST_ID
-        if candidate.is_file():
-            hits.append(candidate)
-        else:
-            # El id puede cambiar entre versiones: busca por contenido.
-            hits.extend(
-                p for p in backup.rglob("*")
-                if p.is_file() and p.stat().st_size < 4_000_000
-                and _looks_like_segway(p)
-            )
-    return hits
+        if candidate.is_file() and looks_like_segway_prefs(candidate.read_bytes()):
+            return creds_from_plist(plistlib.loads(candidate.read_bytes()))
+    raise SystemExit("Ninguna copia sin cifrar contiene datos de Segway.")
 
 
-def _looks_like_segway(path: Path) -> bool:
-    try:
-        with path.open("rb") as fh:
-            if fh.read(8) != b"bplist00":
-                return False
-        data = plistlib.loads(path.read_bytes())
-    except Exception:  # noqa: BLE001 - no es un plist utilizable
-        return False
-    return isinstance(data, dict) and any(
-        isinstance(k, str) and k.endswith("_decrypt") for k in data
-    )
+# ---------------------------------------------------------------------------
 
-
-def dump(path: Path, wanted_sn: str | None) -> int:
-    data = plistlib.loads(path.read_bytes())
-    serials = sorted({k.rsplit("_", 1)[0] for k in data
-                      if isinstance(k, str) and k.endswith(("_decrypt", "_ident"))})
+def report(creds: dict[str, str], wanted_sn: str | None, out: Path | None) -> int:
+    serials = sorted({k.rsplit("_", 1)[0] for k in creds})
     if not serials:
-        print(f"{path}: sin credenciales de vehiculo", file=sys.stderr)
+        print("La app no tiene credenciales de ningun vehiculo.", file=sys.stderr)
         return 1
-
-    print(f"\n{path}")
-    found = 0
-    for sn in serials:
-        if wanted_sn and sn != wanted_sn:
-            continue
-        password = data.get(f"{sn}_decrypt")
-        ident = data.get(f"{sn}_ident")
-        if isinstance(password, str):  # NSUserDefaults puede devolverlo en base64
-            import base64
-            password = base64.b64decode(password)
-        print(f"\n  serie : {sn}")
-        if isinstance(password, (bytes, bytearray)) and len(password) == 16:
-            print(f"  pwd   : {bytes(password).hex()}   <-- esto va en Home Assistant")
-            found += 1
-        else:
-            print(f"  pwd   : ausente o con formato raro ({password!r})")
-        print(f"  ident : {ident if ident else '(ninguno; solo lectura)'}")
-    if wanted_sn and not found:
-        print(f"\nNo hay credencial para '{wanted_sn}'. Series disponibles: {serials}",
+    if wanted_sn and wanted_sn not in serials:
+        print(f"No hay credencial para '{wanted_sn}'. Disponibles: {serials}",
               file=sys.stderr)
         return 1
+
+    selected = [wanted_sn] if wanted_sn else serials
+    for sn in selected:
+        password = creds.get(f"{sn}_decrypt")
+        ident = creds.get(f"{sn}_ident")
+        print(f"\nserie : {sn}")
+        if password and len(password) == 32:
+            print(f"pwd   : {password}   <-- pegar en Home Assistant")
+        else:
+            print(f"pwd   : ausente o con formato raro ({password!r})")
+        print(f"ident : {ident or '(ninguno; la integracion es de solo lectura igual)'}")
+
+    if out:
+        payload = {sn: {"password": creds.get(f"{sn}_decrypt"),
+                        "ident": creds.get(f"{sn}_ident")} for sn in selected}
+        out.write_text(json.dumps(payload, indent=2))
+        out.chmod(0o600)
+        print(f"\nGuardado en {out} (permisos 600). Es una llave de tu patinete:"
+              "\nborralo cuando lo hayas pegado en Home Assistant.")
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--sn", help="numero de serie a extraer")
-    parser.add_argument("--plist", type=Path, help="ruta directa al plist")
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--usb", action="store_true",
+                        help="leer del iPhone conectado (recomendado)")
+    source.add_argument("--backup", action="store_true",
+                        help="leer de una copia local sin cifrar")
+    parser.add_argument("--plist", type=Path, help="ruta directa a un plist ya extraido")
+    parser.add_argument("--sn", help="numero de serie a exportar")
+    parser.add_argument("--out", type=Path, help="volcar tambien a un JSON")
     args = parser.parse_args()
 
-    paths = [args.plist] if args.plist else find_plists()
-    if not paths:
-        print("No encontre ninguna copia de iOS sin cifrar con datos de Segway.\n"
-              "Haz una desde Finder > iPhone > Crear copia de seguridad ahora,\n"
-              "con \"Encriptar copia local\" DESMARCADO.", file=sys.stderr)
-        return 1
-    return max(dump(p, args.sn) for p in paths)
+    if args.plist:
+        creds = creds_from_plist(plistlib.loads(args.plist.read_bytes()))
+    elif args.backup:
+        creds = read_from_backup(None)
+    else:
+        import asyncio
+        creds = asyncio.run(_read_container())
+    return report(creds, args.sn, args.out)
 
 
 if __name__ == "__main__":

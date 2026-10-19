@@ -85,6 +85,50 @@ def test_key_derivation_is_sha1_truncated():
     assert derive_key(SERIAL.encode(), FW_DATA) == expected
 
 
+def test_set_pwd_has_no_builder():
+    """La garantia de convivencia con la app es estructural: el codigo no
+    puede construir SET_PWD, que es lo unico que rotaria la contrasena."""
+    assert not hasattr(proto, "build_set_pwd")
+    assert proto.CMD_SET_PWD_FORBIDDEN not in proto.ALLOWED_CMDS
+
+
+def test_allowlist_is_read_only():
+    assert proto.ALLOWED_CMDS == frozenset(
+        {proto.CMD_PRE_COMM, proto.CMD_AUTH, proto.CMD_READ}
+    )
+    for forbidden in (proto.CMD_WRITE, proto.CMD_WRITE_NR, 0x64, 0x80):
+        assert forbidden not in proto.ALLOWED_CMDS
+
+
+def test_client_blocks_forbidden_commands():
+    """_send rechaza antes de cifrar cualquier trama que no sea de lectura."""
+    import asyncio
+    from nb.client import ForbiddenCommand, NinebotF3Client
+
+    crypto = NbCrypto(ecb_input=FW_DATA)
+    crypto.set_key(SERIAL.encode(), FW_DATA)
+
+    class _Spy:
+        sent = []
+        async def send(self, data): self.sent.append(data)
+
+    spy = _Spy()
+    # Una escritura al registro de luces: bien formada, y aun asi bloqueada.
+    write_frame = proto.build(proto.BOARD_VCU, proto.CMD_WRITE_NR, 0x5B, b"\x01\x00")
+    try:
+        asyncio.run(NinebotF3Client._send(spy, crypto, write_frame))
+    except ForbiddenCommand:
+        pass
+    else:
+        raise AssertionError("se dejo pasar una escritura")
+    assert spy.sent == [], "no debe salir nada al patinete"
+
+    # Una lectura legitima si pasa.
+    asyncio.run(NinebotF3Client._send(
+        spy, crypto, proto.build_read(proto.BOARD_VCU, 0x55, 2)))
+    assert len(spy.sent) == 1
+
+
 def test_decoders():
     assert proto.u16(b"\x34\x12") == 0x1234
     assert proto.s16(b"\xff\xff") == -1

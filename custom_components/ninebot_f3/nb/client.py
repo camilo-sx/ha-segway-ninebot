@@ -47,6 +47,10 @@ BOARD_IDS = {"ble": proto.BOARD_BLE, "mcu": proto.BOARD_MCU,
              "bms1": proto.BOARD_BMS1, "bms2": proto.BOARD_BMS2}
 
 
+class ForbiddenCommand(Exception):
+    """Se intento emitir un comando fuera de la allowlist de solo lectura."""
+
+
 class NinebotError(Exception):
     """Fallo generico de protocolo."""
 
@@ -147,7 +151,11 @@ class NinebotF3Client:
 
     async def async_read_all(self, device: BLEDevice, keys: list[str]) -> dict[str, object]:
         """Conecta, autentica y devuelve {key: valor} para los registros pedidos."""
-        client = await establish_connection(BleakClient, device, self._bt_name)
+        # max_attempts bajo a proposito: reintentar roba radio a la app de
+        # Segway. Si el patinete no esta, se espera al siguiente sondeo.
+        client = await establish_connection(
+            BleakClient, device, self._bt_name, max_attempts=2
+        )
         try:
             write_uuid, notify_uuid = self._pick_characteristics(client)
             transport = _Transport(client, write_uuid, notify_uuid)
@@ -181,13 +189,26 @@ class NinebotF3Client:
         return [c.uuid.lower() for s in client.services for c in s.characteristics
                 if "notify" in c.properties and "6e4000" in c.uuid.lower()]
 
+    @staticmethod
+    async def _send(transport: _Transport, crypto: NbCrypto, frame: bytes) -> None:
+        """Unica salida al patinete. Bloquea cualquier comando que no sea de
+        lectura antes de cifrarlo: ni SET_PWD, ni escrituras, ni clearAllKeys,
+        ni unbondFindMy pueden salir de aqui aunque alguien los construya."""
+        cmd = frame[5]
+        if cmd not in proto.ALLOWED_CMDS:
+            raise ForbiddenCommand(
+                f"comando 0x{cmd:02X} bloqueado: esta integracion es de solo "
+                "lectura y no puede alterar el emparejamiento del patinete"
+            )
+        await transport.send(crypto.encrypt(frame))
+
     async def _handshake(self, transport: _Transport) -> NbCrypto:
         crypto = NbCrypto(ecb_input=FW_DATA if self._gen == 2 else b"\x00" * 16)
         crypto.reset_sn()
         crypto.set_key(self._bt_name.encode(), FW_DATA if self._gen == 2 else None)
 
         request = proto.build_pre_comm(self._gen)
-        await transport.send(crypto.encrypt(request))
+        await self._send(transport, crypto, request)
         plain, _rc = crypto.decrypt(await transport.recv())
         if plain == request:
             # El patinete devuelve la trama tal cual cuando la rechaza.
@@ -212,7 +233,7 @@ class NinebotF3Client:
         crypto.set_auth_param(auth)
         crypto.start_sn()
         crypto.set_key(self._password, auth)
-        await transport.send(crypto.encrypt(proto.build_auth(sn, self._gen)))
+        await self._send(transport, crypto, proto.build_auth(sn, self._gen))
         plain, _rc = crypto.decrypt(await transport.recv())
         frame = proto.parse(plain)
         if frame is None or frame.cmd != proto.CMD_AUTH:
@@ -227,7 +248,7 @@ class NinebotF3Client:
 
     async def _read(self, transport: _Transport, crypto: NbCrypto, reg: proto.Reg):
         request = proto.build_read(self._board_id(reg.board), reg.index, reg.size, self._gen)
-        await transport.send(crypto.encrypt(request))
+        await self._send(transport, crypto, request)
         plain, rc = crypto.decrypt(await transport.recv(timeout=3.0))
         if rc != 0:
             raise NinebotError(f"MAC invalido leyendo {reg.key}")

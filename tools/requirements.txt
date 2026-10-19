@@ -1,0 +1,6 @@
+# Solo para las herramientas de tools/. La integracion no necesita nada:
+# Home Assistant ya trae bleak, bleak-retry-connector y cryptography.
+bleak
+bleak-retry-connector
+cryptography
+pymobiledevice3   # solo para extract_creds.py --usb

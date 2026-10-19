@@ -33,8 +33,16 @@ CMD_READ_RESP = 0x04
 CMD_WRITE_RESP = 0x05
 
 CMD_PRE_COMM = 0x5B
-CMD_SET_PWD = 0x5C
 CMD_AUTH = 0x5D
+
+# 0x5C (SET_PWD) rota la contrasena de sesion del patinete y dejaria sin
+# autenticar a la app de Segway. No hay constructor para el: que el codigo no
+# pueda expresarlo es mas fuerte que prometer no llamarlo.
+CMD_SET_PWD_FORBIDDEN = 0x5C
+
+# Comandos que esta integracion tiene permitido emitir. Todo lo demas se
+# bloquea antes de cifrar (ver client._send).
+ALLOWED_CMDS = frozenset({CMD_PRE_COMM, CMD_AUTH, CMD_READ})
 
 
 @dataclass(frozen=True)
@@ -65,10 +73,6 @@ def parse(decrypted: bytes) -> Frame | None:
 
 def build_pre_comm(gen: int = 2) -> bytes:
     return build(BOARD_BLE, CMD_PRE_COMM, 0x00, b"", gen)
-
-
-def build_set_pwd(password: bytes, gen: int = 2) -> bytes:
-    return build(BOARD_BLE, CMD_SET_PWD, 0x00, password[:16], gen)
 
 
 def build_auth(sn: bytes, gen: int = 2) -> bytes:
