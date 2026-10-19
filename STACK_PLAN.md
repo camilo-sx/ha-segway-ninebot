@@ -73,3 +73,20 @@ Una de estas dos (deciden la rama):
 
 Independiente de eso: puedo intentar extraer los hosts del APK con REA sin tocar
 la cuenta. Es el siguiente movimiento que no depende de nadie.
+
+## Decisión tomada (2026-10-18): captura BLE del re-emparejamiento
+
+La contraseña no vive en la nube (RE del APK lo confirma: deriva en el
+dispositivo). Vía elegida para obtenerla sin romper la app: **capturar el HCI
+Bluetooth del iPhone durante un re-emparejamiento** y descifrar el `SET_PWD`,
+cuya clave SÍ sabemos derivar (`SHA-1(nombre‖auth)`, con el `auth` del PRE_COMM
+de la misma captura). La contraseña la pone la app, nosotros solo la leemos →
+convivencia garantizada.
+
+Herramientas (en el repo): `tools/bt_capture.sh` (túnel nativo sin root +
+`btlogger` por USB) y `tools/decode_capture.py` (saca la contraseña de la
+captura). Test: `tests/test_capture_decode.py` (recupera una contraseña
+sintética con el `auth` real del patinete). Único requisito manual: Modo
+Desarrollador activo en el iPhone.
+
+La fase cloud queda aparcada para el `ident` (acciones de control), fase futura.
