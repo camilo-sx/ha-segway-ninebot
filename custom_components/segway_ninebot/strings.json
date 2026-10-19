@@ -19,7 +19,9 @@
       "reauth_confirm": {
         "title": "Credencial caducada",
         "description": "El patinete rechazó la contraseña. Si la app se reemparejó, generó una nueva: vuelve a exportarla.",
-        "data": { "password_hex": "Contraseña de sesión (32 hex)" }
+        "data": {
+          "password_hex": "Contraseña de sesión (32 hex)"
+        }
       }
     },
     "error": {
@@ -34,43 +36,90 @@
     "step": {
       "init": {
         "title": "Intervalo de sondeo",
-        "description": "Cada lectura ocupa el radio del patinete unos segundos y durante ese rato la app de Segway no puede conectarse.",
-        "data": { "scan_interval_s": "Segundos entre lecturas" }
+        "description": "Cada lectura conecta por BLE: el patinete pita y gasta algo de batería, y la app de Segway no puede entrar ese rato. Más segundos = menos pitidos y menos consumo (900 = 15 min, 1800 = 30 min).",
+        "data": {
+          "scan_interval_s": "Segundos entre lecturas"
+        }
       }
     }
   },
   "entity": {
     "sensor": {
-      "battery": { "name": "Batería" },
-      "speed": { "name": "Velocidad" },
-      "total_mileage": { "name": "Kilometraje total" },
-      "trip_mileage": { "name": "Kilometraje del trayecto" },
-      "left_mileage": { "name": "Autonomía restante" },
-      "precise_mileage": { "name": "Autonomía precisa" },
-      "body_temp": { "name": "Temperatura" },
-      "ride_time": { "name": "Tiempo de conducción" },
-      "runtime": { "name": "Tiempo encendido" },
-      "trip_time": { "name": "Duración del trayecto" },
+      "battery": {
+        "name": "Batería"
+      },
+      "speed": {
+        "name": "Velocidad"
+      },
+      "total_mileage": {
+        "name": "Kilometraje total"
+      },
+      "trip_mileage": {
+        "name": "Kilometraje del trayecto"
+      },
+      "left_mileage": {
+        "name": "Autonomía restante"
+      },
+      "precise_mileage": {
+        "name": "Autonomía precisa"
+      },
+      "body_temp": {
+        "name": "Temperatura"
+      },
+      "ride_time": {
+        "name": "Tiempo de conducción"
+      },
+      "runtime": {
+        "name": "Tiempo encendido"
+      },
+      "trip_time": {
+        "name": "Duración del trayecto"
+      },
       "gear_mode": {
         "name": "Modo de conducción",
         "state": {
-          "normal": "Normal", "eco": "Eco", "sport": "Sport",
-          "custom": "Personalizado", "unknown": "Desconocido"
+          "normal": "Normal",
+          "eco": "Eco",
+          "sport": "Sport",
+          "custom": "Personalizado",
+          "unknown": "Desconocido"
         }
       },
-      "error_code": { "name": "Código de error" },
-      "warn_code": { "name": "Código de aviso" },
-      "serial_number": { "name": "Número de serie" },
-      "bms1_voltage": { "name": "Tensión batería 1" },
-      "bms1_current": { "name": "Corriente batería 1" },
-      "bms1_soc": { "name": "Carga batería 1" },
-      "bms1_temp": { "name": "Temperatura batería 1" },
-      "bms2_voltage": { "name": "Tensión batería 2" },
-      "bms2_current": { "name": "Corriente batería 2" },
-      "bms2_soc": { "name": "Carga batería 2" }
+      "error_code": {
+        "name": "Código de error"
+      },
+      "warn_code": {
+        "name": "Código de aviso"
+      },
+      "serial_number": {
+        "name": "Número de serie"
+      },
+      "bms1_voltage": {
+        "name": "Tensión batería 1"
+      },
+      "bms1_current": {
+        "name": "Corriente batería 1"
+      },
+      "bms1_soc": {
+        "name": "Carga batería 1"
+      },
+      "bms1_temp": {
+        "name": "Temperatura batería 1"
+      },
+      "bms2_voltage": {
+        "name": "Tensión batería 2"
+      },
+      "bms2_current": {
+        "name": "Corriente batería 2"
+      },
+      "bms2_soc": {
+        "name": "Carga batería 2"
+      }
     },
     "switch": {
-      "polling": { "name": "Sondeo BLE" }
+      "polling": {
+        "name": "Sondeo BLE"
+      }
     }
   }
 }

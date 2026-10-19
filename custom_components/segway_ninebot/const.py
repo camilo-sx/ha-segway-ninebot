@@ -10,4 +10,7 @@ CONF_SCAN_INTERVAL_S = "scan_interval_s"
 
 # Un sondeo ocupa el radio del patinete unos segundos y bloquea a la app de
 # Segway mientras dura. 5 minutos es un compromiso razonable; es configurable.
-DEFAULT_SCAN_INTERVAL_S = 300
+# 15 min por defecto: cada sondeo conecta por BLE (el patinete pita y gasta algo
+# de bateria al despertar el radio), asi que se espacia. Subelo mas si prefieres
+# menos pitidos/consumo a cambio de datos menos frescos.
+DEFAULT_SCAN_INTERVAL_S = 900

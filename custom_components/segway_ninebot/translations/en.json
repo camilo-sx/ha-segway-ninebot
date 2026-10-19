@@ -36,7 +36,7 @@
     "step": {
       "init": {
         "title": "Polling interval",
-        "description": "Each read occupies the scooter radio for a few seconds; the Segway app cannot connect meanwhile.",
+        "description": "Each read opens a BLE connection: the scooter beeps and uses a little battery, and the Segway app cannot connect meanwhile. More seconds = fewer beeps and less drain (900 = 15 min, 1800 = 30 min).",
         "data": {
           "scan_interval_s": "Seconds between reads"
         }

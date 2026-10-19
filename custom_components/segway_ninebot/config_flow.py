@@ -145,7 +145,7 @@ class NinebotF3OptionsFlow(OptionsFlow):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_SCAN_INTERVAL_S, default=current): vol.All(
-                        vol.Coerce(int), vol.Range(min=30, max=3600)
+                        vol.Coerce(int), vol.Range(min=60, max=21600)
                     )
                 }
             ),
