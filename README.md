@@ -26,7 +26,7 @@ Mientras Home Assistant lee, la app no puede conectarse. Mitigaciones:
 
 ## Instalación
 
-1. HACS → Repositorios personalizados → `https://github.com/camilo-sx/ha-ninebot-f3`, tipo *Integration*.
+1. HACS → Repositorios personalizados → `https://github.com/camilo-sx/ha-segway-ninebot`, tipo *Integration*.
 2. Instalar y reiniciar Home Assistant.
 3. Ajustes → Dispositivos y servicios → Añadir integración → *Segway Ninebot F3*.
 

@@ -1,6 +1,6 @@
 """Constantes de la integracion."""
 
-DOMAIN = "ninebot_f3"
+DOMAIN = "segway_ninebot"
 
 CONF_BT_NAME = "bt_name"
 CONF_PASSWORD_HEX = "password_hex"

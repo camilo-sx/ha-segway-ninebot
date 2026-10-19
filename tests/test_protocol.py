@@ -10,7 +10,7 @@ trama o el parser se rompen, este fichero falla.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "custom_components" / "ninebot_f3"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "custom_components" / "segway_ninebot"))
 
 from nb import protocol as proto
 from nb.crypto import FW_DATA, NbCrypto, derive_key
